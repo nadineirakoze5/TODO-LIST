@@ -46,16 +46,18 @@ class TaskDetailScreen extends StatelessWidget {
                   const SizedBox(height: 12),
                   Text(task.description, style: textTheme.bodyMedium),
                   const Divider(height: 30),
-                  Row(
+
+                  Wrap(
+                    spacing: 10,
+                    runSpacing: 8,
                     children: [
                       Chip(label: Text("Priority: ${task.priority}")),
-                      const SizedBox(width: 10),
                       Chip(label: Text("Category: ${task.category}")),
-                      const SizedBox(width: 10),
                       if (task.repeat != 'None')
                         Chip(label: Text("Repeat: ${task.repeat}")),
                     ],
                   ),
+
                   const SizedBox(height: 20),
                   if (checklist.isNotEmpty) ...[
                     const Text(

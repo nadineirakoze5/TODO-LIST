@@ -37,15 +37,27 @@ class _AddEditTaskScreenState extends State<AddEditTaskScreen> {
       final t = widget.task!;
       _titleController.text = t.title;
       _descController.text = t.description;
-      _selectedDate = DateTime.parse(t.date);
-      _selectedTime = TimeOfDay(
-        hour: int.parse(t.time.split(":")[0]),
-        minute: int.parse(t.time.split(":")[1]),
-      );
+      _selectedDate = DateTime.tryParse(t.date);
+
+      // Safely parse time in 24-hour format
+      try {
+        final parts = t.time.split(':');
+        final hour = int.parse(parts[0]);
+        final minute = int.parse(parts[1]);
+        _selectedTime = TimeOfDay(hour: hour, minute: minute);
+      } catch (e) {
+        _selectedTime = TimeOfDay.now(); // silently fallback without toast
+      }
+
       _priority = t.priority;
       _repeat = t.repeat;
       _category = t.category;
-      _checklist = List<String>.from(json.decode(t.checklist));
+
+      try {
+        _checklist = List<String>.from(json.decode(t.checklist));
+      } catch (_) {
+        _checklist = [];
+      }
     }
   }
 
@@ -75,12 +87,16 @@ class _AddEditTaskScreenState extends State<AddEditTaskScreen> {
       return;
     }
 
+    // Convert TimeOfDay to 24-hour formatted string
+    final formattedTime =
+        '${_selectedTime!.hour.toString().padLeft(2, '0')}:${_selectedTime!.minute.toString().padLeft(2, '0')}';
+
     final task = TaskModel(
       id: widget.task?.id,
       title: _titleController.text.trim(),
       description: _descController.text.trim(),
       date: _selectedDate!.toIso8601String(),
-      time: _selectedTime!.format(context),
+      time: formattedTime,
       priority: _priority,
       category: _category,
       repeat: _repeat,
@@ -110,7 +126,7 @@ class _AddEditTaskScreenState extends State<AddEditTaskScreen> {
       Fluttertoast.showToast(msg: "✅ Task updated!");
     }
 
-    await _controller.fetchTasks(); // Ensure refresh before exit
+    await _controller.fetchTasks(); // Ensure list refresh
     Navigator.pop(context);
   }
 

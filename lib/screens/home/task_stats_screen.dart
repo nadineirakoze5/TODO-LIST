@@ -39,7 +39,7 @@ class TaskStatsScreen extends StatelessWidget {
         padding: const EdgeInsets.all(24),
         child: Column(
           children: [
-            _statTile("✅ Completed Today", today, Icons.today, Colors.green),
+            _statTile("Completed Today", today, Icons.today, Colors.green),
             const SizedBox(height: 20),
             _statTile(
               "📅 This Week",

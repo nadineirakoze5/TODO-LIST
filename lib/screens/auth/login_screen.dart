@@ -6,6 +6,8 @@ import 'package:todo_list/screens/auth/register_screen.dart';
 import 'package:todo_list/models/user_model.dart';
 import 'dart:convert';
 import 'package:fluttertoast/fluttertoast.dart';
+import 'package:todo_list/screens/auth/reset_password_screen.dart';
+
 
 class LoginScreen extends StatefulWidget {
   const LoginScreen({super.key});
@@ -118,6 +120,12 @@ class _LoginScreenState extends State<LoginScreen> {
                     TextButton(
                       onPressed: () => Get.to(() => const RegisterScreen()),
                       child: const Text("Don't have an account? Register"),
+                    ),
+
+                    TextButton(
+                      onPressed:
+                          () => Get.to(() => const ResetPasswordScreen()),
+                      child: const Text("Forgot Password?"),
                     ),
                   ],
                 ),
