@@ -37,17 +37,7 @@ class _AddEditTaskScreenState extends State<AddEditTaskScreen> {
       _titleController.text = t.title;
       _descController.text = t.description;
       _selectedDate = DateTime.tryParse(t.date);
-
-      try {
-        final parts = t.time.split(':');
-        _selectedTime = TimeOfDay(
-          hour: int.parse(parts[0]),
-          minute: int.parse(parts[1]),
-        );
-      } catch (_) {
-        _selectedTime = TimeOfDay.now();
-      }
-
+      _selectedTime = _parseTime(t.time);
       _priority = t.priority;
       _repeat = t.repeat;
       _category = t.category;
@@ -57,6 +47,15 @@ class _AddEditTaskScreenState extends State<AddEditTaskScreen> {
       } catch (_) {
         _checklist = [];
       }
+    }
+  }
+
+  TimeOfDay _parseTime(String time) {
+    try {
+      final parts = time.split(':');
+      return TimeOfDay(hour: int.parse(parts[0]), minute: int.parse(parts[1]));
+    } catch (_) {
+      return TimeOfDay.now();
     }
   }
 
@@ -88,13 +87,28 @@ class _AddEditTaskScreenState extends State<AddEditTaskScreen> {
 
     final formattedTime =
         '${_selectedTime!.hour.toString().padLeft(2, '0')}:${_selectedTime!.minute.toString().padLeft(2, '0')}';
+    final formattedDate = _selectedDate!.toIso8601String().split('T')[0];
+
+    // Prevent duplicate (same title, date, time)
+    final isDuplicate = _controller.taskList.any(
+      (task) =>
+          task.title == _titleController.text.trim() &&
+          task.date == formattedDate &&
+          task.time == formattedTime &&
+          task.id != widget.task?.id,
+    );
+
+    if (widget.task == null && isDuplicate) {
+      showToast("⚠️ Task already exists!");
+      return;
+    }
 
     final task = TaskModel(
       localId: widget.task?.localId,
       id: widget.task?.id,
       title: _titleController.text.trim(),
       description: _descController.text.trim(),
-      date: _selectedDate!.toIso8601String().split('T')[0],
+      date: formattedDate,
       time: formattedTime,
       priority: _priority,
       category: _category,
@@ -110,7 +124,7 @@ class _AddEditTaskScreenState extends State<AddEditTaskScreen> {
         id: DateTime.now().millisecondsSinceEpoch ~/ 1000,
         title: "Task Reminder",
         body: task.title,
-        scheduledTime: DateTime(
+        taskDateTime: DateTime(
           _selectedDate!.year,
           _selectedDate!.month,
           _selectedDate!.day,
