@@ -142,3 +142,29 @@ lib/
  - Backup/Restore to cloud
 
  - Theme customization
+# ----------------------------------------------------------------------
+
+## Technologies Used
+In this To-Do List Flutter app, several core technologies have been integrated to enhance functionality, performance, and user experience:
+
+- **Push Notifications**
+The app uses local push notifications to remind users about their tasks. Notifications are scheduled using the flutter_local_notifications package to alert the user shortly before a task is due, even if the app is closed.
+
+- **Firebase**
+Firebase is used for two main features:
+
+Authentication: Users can register, login, and reset passwords using Firebase Authentication with email and password.
+
+Firestore Database: Task data is stored in Firebase Firestore to allow real-time updates and cloud-based synchronization.
+
+- **State Management (GetX)**
+The app uses GetX for managing application state reactively. It controls task lists, screen navigation, and user interaction efficiently, helping the app respond to changes like task additions, edits, and filtering without manually rebuilding the UI.
+
+- **Local Storage (SharedPreferences)**
+SharedPreferences is used to store simple persistent data like whether the user is logged in, the current user’s email/name, and dark mode preference. This ensures the app remembers settings and login state between sessions.
+
+- **SQLite**
+SQLite serves as the offline database. It stores all tasks locally on the device using the sqflite package. This ensures users can access and manage tasks without internet, and it works alongside Firestore for dual storage (online + offline).
+
+- **Navigation**
+The app uses GetX’s navigation system (Get.to, Get.back, Get.offAll) to move between screens. This simplifies routing and state management without needing to configure complex navigation stacks manually.
