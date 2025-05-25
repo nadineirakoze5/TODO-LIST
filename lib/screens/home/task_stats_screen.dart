@@ -1,4 +1,5 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'package:todo_list/controllers/task_controller.dart';
@@ -6,34 +7,48 @@ import 'package:todo_list/models/task_model.dart';
 
 class TaskStatsScreen extends StatelessWidget {
   const TaskStatsScreen({super.key});
-  final bool useFirestore = true; // 🔁 Change to false to use SQLite
+  final bool useFirestore = true;
 
   @override
   Widget build(BuildContext context) {
     final TaskController taskController = Get.find();
+    final user = FirebaseAuth.instance.currentUser;
 
-    return Scaffold(
-      appBar: AppBar(title: const Text("Task Stats")),
-      body:
-          useFirestore
-              ? StreamBuilder<QuerySnapshot>(
-                stream:
-                    FirebaseFirestore.instance.collection('tasks').snapshots(),
-                builder: (context, snapshot) {
-                  if (!snapshot.hasData) {
-                    return const Center(child: CircularProgressIndicator());
-                  }
-                  final tasks =
-                      snapshot.data!.docs.map((doc) {
-                        final map = doc.data() as Map<String, dynamic>;
-                        return TaskModel.fromMap({...map, 'id': doc.id});
-                      }).toList();
+    if (useFirestore) {
+      if (user == null) {
+        return const Scaffold(body: Center(child: Text("User not logged in")));
+      }
 
-                  return _buildStats(tasks);
-                },
-              )
-              : Obx(() => _buildStats(taskController.taskList)),
-    );
+      return Scaffold(
+        appBar: AppBar(title: const Text("Task Stats")),
+        body: StreamBuilder<QuerySnapshot>(
+          stream:
+              FirebaseFirestore.instance
+                  .collection('users')
+                  .doc(user.uid)
+                  .collection('tasks')
+                  .snapshots(),
+          builder: (context, snapshot) {
+            if (!snapshot.hasData) {
+              return const Center(child: CircularProgressIndicator());
+            }
+
+            final tasks =
+                snapshot.data!.docs.map((doc) {
+                  final map = doc.data() as Map<String, dynamic>;
+                  return TaskModel.fromMap({...map, 'id': doc.id});
+                }).toList();
+
+            return _buildStats(tasks);
+          },
+        ),
+      );
+    } else {
+      return Scaffold(
+        appBar: AppBar(title: const Text("Task Stats")),
+        body: Obx(() => _buildStats(taskController.taskList)),
+      );
+    }
   }
 
   Widget _buildStats(List<TaskModel> tasks) {
@@ -49,7 +64,7 @@ class TaskStatsScreen extends StatelessWidget {
               date.day == now.day;
         }).length;
 
-    final weekStart = now.subtract(Duration(days: now.weekday));
+    final weekStart = now.subtract(Duration(days: now.weekday - 1));
     final weekEnd = weekStart.add(const Duration(days: 6));
 
     final week =
@@ -57,8 +72,8 @@ class TaskStatsScreen extends StatelessWidget {
           final date = DateTime.tryParse(task.date);
           return task.isDone == 1 &&
               date != null &&
-              date.isAfter(weekStart.subtract(const Duration(days: 1))) &&
-              date.isBefore(weekEnd.add(const Duration(days: 1)));
+              !date.isBefore(weekStart) &&
+              !date.isAfter(weekEnd);
         }).length;
 
     final totalCompleted = tasks.where((task) => task.isDone == 1).length;

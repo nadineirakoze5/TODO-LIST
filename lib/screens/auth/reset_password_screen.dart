@@ -18,20 +18,20 @@ class _ResetPasswordScreenState extends State<ResetPasswordScreen> {
     final email = _emailController.text.trim();
 
     if (email.isEmpty || !email.contains('@')) {
-      showToast('⚠️ Enter a valid email address');
+      showToast('Enter a valid email address');
       return;
     }
 
     try {
       await _auth.sendPasswordResetEmail(email: email);
-      showToast('✅ Reset link sent to $email');
+      showToast(' Reset link sent to $email');
       Get.back();
     } on FirebaseAuthException catch (e) {
       String msg = 'Something went wrong';
       if (e.code == 'user-not-found') {
-        msg = '⚠️ No user found with that email';
+        msg = ' No user found with that email';
       } else if (e.code == 'invalid-email') {
-        msg = '⚠️ Invalid email format';
+        msg = ' Invalid email format';
       }
       showToast(msg);
     } catch (e) {

@@ -1,4 +1,5 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'package:intl/intl.dart';
@@ -15,8 +16,10 @@ class FilterScreen extends StatefulWidget {
 
 class _FilterScreenState extends State<FilterScreen> {
   final TaskController taskController = Get.find();
+  final FirebaseAuth _auth = FirebaseAuth.instance;
+
   bool showCompleted = false;
-  final bool useFirestore = true; // Change to false to use SQLite
+  final bool useFirestore = true;
 
   @override
   void initState() {
@@ -36,6 +39,7 @@ class _FilterScreenState extends State<FilterScreen> {
             icon: Icon(
               showCompleted ? Icons.incomplete_circle : Icons.check_circle,
             ),
+            tooltip: showCompleted ? 'Show Pending' : 'Show Completed',
             onPressed: () => setState(() => showCompleted = !showCompleted),
           ),
         ],
@@ -45,15 +49,26 @@ class _FilterScreenState extends State<FilterScreen> {
   }
 
   Widget _buildFirestoreTasks() {
+    final user = _auth.currentUser;
+    if (user == null) {
+      return const Center(child: Text('User not logged in'));
+    }
+
+    final stream =
+        FirebaseFirestore.instance
+            .collection('users')
+            .doc(user.uid)
+            .collection('tasks')
+            .where('isDone', isEqualTo: showCompleted ? 1 : 0)
+            .orderBy('date')
+            .snapshots();
+
     return StreamBuilder<QuerySnapshot>(
-      stream:
-          FirebaseFirestore.instance
-              .collection('tasks')
-              .where('isDone', isEqualTo: showCompleted ? 1 : 0)
-              .snapshots(),
+      stream: stream,
       builder: (context, snapshot) {
-        if (!snapshot.hasData)
+        if (!snapshot.hasData) {
           return const Center(child: CircularProgressIndicator());
+        }
 
         final tasks =
             snapshot.data!.docs.map((doc) {
@@ -69,10 +84,7 @@ class _FilterScreenState extends State<FilterScreen> {
 
         return ListView.builder(
           itemCount: tasks.length,
-          itemBuilder: (context, index) {
-            final task = tasks[index];
-            return _buildTaskCard(task);
-          },
+          itemBuilder: (context, index) => _buildTaskCard(tasks[index]),
         );
       },
     );
@@ -95,10 +107,7 @@ class _FilterScreenState extends State<FilterScreen> {
 
       return ListView.builder(
         itemCount: tasks.length,
-        itemBuilder: (context, index) {
-          final task = tasks[index];
-          return _buildTaskCard(task);
-        },
+        itemBuilder: (context, index) => _buildTaskCard(tasks[index]),
       );
     });
   }
@@ -123,10 +132,15 @@ class _FilterScreenState extends State<FilterScreen> {
           onChanged: (val) {
             final updated = task.copyWith(isDone: val! ? 1 : 0);
             if (useFirestore) {
-              FirebaseFirestore.instance
-                  .collection('tasks')
-                  .doc(task.id)
-                  .update({'isDone': updated.isDone});
+              final user = _auth.currentUser;
+              if (user != null && task.id != null) {
+                FirebaseFirestore.instance
+                    .collection('users')
+                    .doc(user.uid)
+                    .collection('tasks')
+                    .doc(task.id)
+                    .update({'isDone': updated.isDone});
+              }
             } else {
               taskController.updateTask(updated);
             }

@@ -2,10 +2,12 @@ import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'package:intl/intl.dart';
-import 'package:todo_list/controllers/task_controller.dart';
-import 'package:todo_list/models/task_model.dart';
-import 'package:todo_list/services/notification_service.dart';
 import 'package:oktoast/oktoast.dart';
+import 'package:firebase_auth/firebase_auth.dart';
+
+import '../../controllers/task_controller.dart';
+import '../../models/task_model.dart';
+import '../../services/notification_service.dart';
 
 class AddEditTaskScreen extends StatefulWidget {
   final TaskModel? task;
@@ -41,7 +43,6 @@ class _AddEditTaskScreenState extends State<AddEditTaskScreen> {
       _priority = t.priority;
       _repeat = t.repeat;
       _category = t.category;
-
       try {
         _checklist = List<String>.from(json.decode(t.checklist));
       } catch (_) {
@@ -77,7 +78,7 @@ class _AddEditTaskScreenState extends State<AddEditTaskScreen> {
     if (picked != null) setState(() => _selectedTime = picked);
   }
 
-  void _saveTask() async {
+  Future<void> _saveTask() async {
     if (_titleController.text.isEmpty ||
         _selectedDate == null ||
         _selectedTime == null) {
@@ -89,7 +90,12 @@ class _AddEditTaskScreenState extends State<AddEditTaskScreen> {
         '${_selectedTime!.hour.toString().padLeft(2, '0')}:${_selectedTime!.minute.toString().padLeft(2, '0')}';
     final formattedDate = _selectedDate!.toIso8601String().split('T')[0];
 
-    // Prevent duplicate (same title, date, time)
+    final userId = FirebaseAuth.instance.currentUser?.uid;
+    if (userId == null) {
+      showToast("User not logged in");
+      return;
+    }
+
     final isDuplicate = _controller.taskList.any(
       (task) =>
           task.title == _titleController.text.trim() &&
@@ -117,35 +123,37 @@ class _AddEditTaskScreenState extends State<AddEditTaskScreen> {
       isDone: widget.task?.isDone ?? 0,
     );
 
-    if (widget.task == null) {
-      await _controller.addTaskToBoth(task);
+   if (widget.task == null) {
+  await _controller.addTask(task);
 
-      await NotificationService.scheduleNotification(
-        id: DateTime.now().millisecondsSinceEpoch ~/ 1000,
-        title: "Task Reminder",
-        body: task.title,
-        taskDateTime: DateTime(
-          _selectedDate!.year,
-          _selectedDate!.month,
-          _selectedDate!.day,
-          _selectedTime!.hour,
-          _selectedTime!.minute,
-        ),
-      );
+  await NotificationService.scheduleNotification(
+    id: DateTime.now().millisecondsSinceEpoch ~/ 1000,
+    title: "Task Reminder",
+    body: task.title,
+    taskDateTime: DateTime(
+      _selectedDate!.year,
+      _selectedDate!.month,
+      _selectedDate!.day,
+      _selectedTime!.hour,
+      _selectedTime!.minute,
+    ),
+  );
 
-      showToast("✅ Task created!");
-    } else {
-      await _controller.updateTaskToBoth(task);
-      showToast("✅ Task updated!");
-    }
+  showToast("✅ Task created!");
+} else {
+  await _controller.updateTask(task);
+  showToast("✅ Task updated!");
+}
 
-    await _controller.fetchTasks();
+
+    // await _controller.fetchTasks(userId: userId);
     Navigator.pop(context);
   }
 
   @override
   Widget build(BuildContext context) {
     final isEditing = widget.task != null;
+
     return Scaffold(
       appBar: AppBar(title: Text(isEditing ? "Edit Task" : "Add Task")),
       body: SingleChildScrollView(
