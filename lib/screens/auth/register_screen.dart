@@ -1,10 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
-import 'package:shared_preferences/shared_preferences.dart';
-import 'package:todo_list/screens/auth/login_screen.dart';
-import 'package:todo_list/models/user_model.dart';
-import 'dart:convert';
-import 'package:fluttertoast/fluttertoast.dart';
+import 'package:oktoast/oktoast.dart';
+import 'package:firebase_auth/firebase_auth.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
+
+import 'login_screen.dart';
 
 class RegisterScreen extends StatefulWidget {
   const RegisterScreen({super.key});
@@ -19,44 +19,59 @@ class _RegisterScreenState extends State<RegisterScreen> {
   final _emailCtrl = TextEditingController();
   final _passwordCtrl = TextEditingController();
 
-  void _register() async {
+  final FirebaseAuth _auth = FirebaseAuth.instance;
+
+  Future<void> _register() async {
     if (!_formKey.currentState!.validate()) return;
-
-    final prefs = await SharedPreferences.getInstance();
-    final usersJson = prefs.getStringList('users') ?? [];
-
-    List<UserModel> users =
-        usersJson
-            .map((jsonStr) => UserModel.fromMap(json.decode(jsonStr)))
-            .toList();
 
     final name = _nameCtrl.text.trim();
     final email = _emailCtrl.text.trim();
     final password = _passwordCtrl.text.trim();
 
-    final exists = users.any((user) => user.email == email);
-
-    if (exists) {
-      Fluttertoast.showToast(
-        msg: "Email already registered",
-        gravity: ToastGravity.BOTTOM,
+    try {
+      // Firebase Auth registration
+      final credential = await _auth.createUserWithEmailAndPassword(
+        email: email,
+        password: password,
       );
-      return;
+
+      final user = credential.user;
+
+      if (user != null) {
+        // Update display name
+        await user.updateDisplayName(name);
+        await user.reload();
+
+        // Save to Firestore
+        await FirebaseFirestore.instance.collection('users').doc(user.uid).set({
+          'uid': user.uid,
+          'name': name,
+          'email': email,
+          'createdAt': FieldValue.serverTimestamp(),
+        });
+
+        showToast(
+          "🎉 Account created successfully!",
+          position: ToastPosition.bottom,
+        );
+
+        Get.offAll(() => const LoginScreen());
+      }
+    } on FirebaseAuthException catch (e) {
+      String message = "❌ Registration failed";
+
+      if (e.code == 'email-already-in-use') {
+        message = "⚠️ Email is already registered. Try logging in.";
+      } else if (e.code == 'weak-password') {
+        message = "⚠️ Password must be at least 6 characters.";
+      } else if (e.code == 'invalid-email') {
+        message = "⚠️ Invalid email format.";
+      }
+
+      showToast(message, position: ToastPosition.bottom);
+    } catch (e) {
+      showToast("❌ Unexpected error: ${e.toString()}", position: ToastPosition.bottom);
     }
-
-    final newUser = UserModel(name: name, email: email, password: password);
-    users.add(newUser);
-    final updatedJson = users.map((u) => json.encode(u.toMap())).toList();
-
-    await prefs.setStringList('users', updatedJson);
-    await prefs.setString('current_user', email);
-    await prefs.setString('current_user_name', name);
-
-    Fluttertoast.showToast(
-      msg: "Account created successfully!",
-      gravity: ToastGravity.BOTTOM,
-    );
-    Get.offAll(const LoginScreen());
   }
 
   @override
@@ -79,10 +94,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
                   children: [
                     const Text(
                       "Register",
-                      style: TextStyle(
-                        fontSize: 28,
-                        fontWeight: FontWeight.bold,
-                      ),
+                      style: TextStyle(fontSize: 28, fontWeight: FontWeight.bold),
                     ),
                     const SizedBox(height: 30),
                     TextFormField(
@@ -91,11 +103,8 @@ class _RegisterScreenState extends State<RegisterScreen> {
                         labelText: "Full Name",
                         prefixIcon: Icon(Icons.person),
                       ),
-                      validator:
-                          (val) =>
-                              val == null || val.isEmpty
-                                  ? 'Enter your name'
-                                  : null,
+                      validator: (val) =>
+                          val == null || val.isEmpty ? 'Enter your name' : null,
                     ),
                     const SizedBox(height: 20),
                     TextFormField(
@@ -104,11 +113,8 @@ class _RegisterScreenState extends State<RegisterScreen> {
                         labelText: "Email",
                         prefixIcon: Icon(Icons.email),
                       ),
-                      validator:
-                          (val) =>
-                              val == null || !val.contains('@')
-                                  ? 'Enter valid email'
-                                  : null,
+                      validator: (val) =>
+                          val == null || !val.contains('@') ? 'Enter valid email' : null,
                     ),
                     const SizedBox(height: 20),
                     TextFormField(
@@ -118,11 +124,10 @@ class _RegisterScreenState extends State<RegisterScreen> {
                         labelText: "Password",
                         prefixIcon: Icon(Icons.lock),
                       ),
-                      validator:
-                          (val) =>
-                              val == null || val.length < 6
-                                  ? 'Minimum 6 characters'
-                                  : null,
+                      validator: (val) =>
+                          val == null || val.length < 6
+                              ? 'Minimum 6 characters'
+                              : null,
                     ),
                     const SizedBox(height: 30),
                     SizedBox(

@@ -1,9 +1,7 @@
-import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
-import 'package:shared_preferences/shared_preferences.dart';
-import 'package:todo_list/models/user_model.dart';
-import 'package:fluttertoast/fluttertoast.dart';
+import 'package:oktoast/oktoast.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 
 class ResetPasswordScreen extends StatefulWidget {
   const ResetPasswordScreen({super.key});
@@ -14,41 +12,31 @@ class ResetPasswordScreen extends StatefulWidget {
 
 class _ResetPasswordScreenState extends State<ResetPasswordScreen> {
   final _emailController = TextEditingController();
-  final _passwordController = TextEditingController();
+  final FirebaseAuth _auth = FirebaseAuth.instance;
 
-  void _resetPassword() async {
-    final prefs = await SharedPreferences.getInstance();
+  Future<void> _sendResetEmail() async {
     final email = _emailController.text.trim();
-    final newPassword = _passwordController.text.trim();
 
-    if (email.isEmpty || newPassword.isEmpty) {
-      Fluttertoast.showToast(msg: 'Fill both fields');
+    if (email.isEmpty || !email.contains('@')) {
+      showToast('⚠️ Enter a valid email address');
       return;
     }
 
-    final usersJson = prefs.getStringList('users') ?? [];
-    List<UserModel> users = usersJson
-        .map((e) => UserModel.fromMap(json.decode(e)))
-        .toList();
-
-    final userIndex = users.indexWhere((u) => u.email == email);
-    if (userIndex == -1) {
-      Fluttertoast.showToast(msg: 'Email not found');
-      return;
+    try {
+      await _auth.sendPasswordResetEmail(email: email);
+      showToast('✅ Reset link sent to $email');
+      Get.back();
+    } on FirebaseAuthException catch (e) {
+      String msg = 'Something went wrong';
+      if (e.code == 'user-not-found') {
+        msg = '⚠️ No user found with that email';
+      } else if (e.code == 'invalid-email') {
+        msg = '⚠️ Invalid email format';
+      }
+      showToast(msg);
+    } catch (e) {
+      showToast('❌ Error: ${e.toString()}');
     }
-
-    users[userIndex] = UserModel(
-      name: users[userIndex].name,
-      email: email,
-      password: newPassword,
-    );
-
-    final updatedJson =
-        users.map((u) => json.encode(u.toMap())).toList();
-    await prefs.setStringList('users', updatedJson);
-
-    Fluttertoast.showToast(msg: '✅ Password updated!');
-    Get.back();
   }
 
   @override
@@ -58,29 +46,32 @@ class _ResetPasswordScreenState extends State<ResetPasswordScreen> {
       body: Padding(
         padding: const EdgeInsets.all(24),
         child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             const SizedBox(height: 30),
-            TextField(
-              controller: _emailController,
-              decoration: const InputDecoration(
-                labelText: 'Email',
-                prefixIcon: Icon(Icons.email),
-              ),
+            const Text(
+              'Enter your registered email to receive a password reset link.',
+              style: TextStyle(fontSize: 16),
             ),
             const SizedBox(height: 20),
             TextField(
-              controller: _passwordController,
-              obscureText: true,
+              controller: _emailController,
+              keyboardType: TextInputType.emailAddress,
               decoration: const InputDecoration(
-                labelText: 'New Password',
-                prefixIcon: Icon(Icons.lock),
+                labelText: 'Email',
+                prefixIcon: Icon(Icons.email),
+                border: OutlineInputBorder(),
               ),
             ),
             const SizedBox(height: 30),
-            ElevatedButton(
-              onPressed: _resetPassword,
-              child: const Text('Reset Password'),
-            )
+            SizedBox(
+              width: double.infinity,
+              child: ElevatedButton.icon(
+                icon: const Icon(Icons.send),
+                label: const Text('Send Reset Link'),
+                onPressed: _sendResetEmail,
+              ),
+            ),
           ],
         ),
       ),

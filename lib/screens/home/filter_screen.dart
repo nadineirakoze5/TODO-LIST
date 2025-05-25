@@ -1,3 +1,4 @@
+import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'package:intl/intl.dart';
@@ -15,11 +16,14 @@ class FilterScreen extends StatefulWidget {
 class _FilterScreenState extends State<FilterScreen> {
   final TaskController taskController = Get.find();
   bool showCompleted = false;
+  final bool useFirestore = true; // Change to false to use SQLite
 
   @override
   void initState() {
     super.initState();
-    taskController.fetchTasks();
+    if (!useFirestore) {
+      taskController.fetchTasks();
+    }
   }
 
   @override
@@ -32,66 +36,103 @@ class _FilterScreenState extends State<FilterScreen> {
             icon: Icon(
               showCompleted ? Icons.incomplete_circle : Icons.check_circle,
             ),
-            tooltip: showCompleted ? 'Show Pending' : 'Show Completed',
-            onPressed: () {
-              setState(() => showCompleted = !showCompleted);
-            },
+            onPressed: () => setState(() => showCompleted = !showCompleted),
           ),
         ],
       ),
-      body: Obx(() {
+      body: useFirestore ? _buildFirestoreTasks() : _buildSQLiteTasks(),
+    );
+  }
+
+  Widget _buildFirestoreTasks() {
+    return StreamBuilder<QuerySnapshot>(
+      stream:
+          FirebaseFirestore.instance
+              .collection('tasks')
+              .where('isDone', isEqualTo: showCompleted ? 1 : 0)
+              .snapshots(),
+      builder: (context, snapshot) {
+        if (!snapshot.hasData)
+          return const Center(child: CircularProgressIndicator());
+
         final tasks =
-            taskController.taskList
-                .where(
-                  (task) => showCompleted ? task.isDone == 1 : task.isDone == 0,
-                )
-                .toList();
+            snapshot.data!.docs.map((doc) {
+              final data = doc.data() as Map<String, dynamic>;
+              return TaskModel.fromMap({...data, 'id': doc.id});
+            }).toList();
 
         if (tasks.isEmpty) {
           return Center(
-            child: Text('No ${showCompleted ? 'completed' : 'pending'} tasks.'),
+            child: Text("No ${showCompleted ? 'completed' : 'pending'} tasks."),
           );
         }
 
         return ListView.builder(
           itemCount: tasks.length,
           itemBuilder: (context, index) {
-            TaskModel task = tasks[index];
-            return Card(
-              margin: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-              child: ListTile(
-                onTap:
-                    () => Get.to(
-                      () => TaskDetailScreen(task: task),
-                    ), // ✅ Open detail
-                title: Text(task.title),
-                subtitle: Text(
-                  'Due: ${DateFormat.yMd().format(DateTime.parse(task.date))}',
-                ),
-
-                trailing: Checkbox(
-                  value: task.isDone == 1,
-                  onChanged: (val) {
-                    final updatedTask = TaskModel(
-                      id: task.id,
-                      title: task.title,
-                      description: task.description,
-                      date: task.date,
-                      time: task.time,
-                      priority: task.priority,
-                      category: task.category,
-                      repeat: task.repeat,
-                      checklist: task.checklist,
-                      isDone: val! ? 1 : 0,
-                    );
-                    taskController.updateTask(updatedTask);
-                  },
-                ),
-              ),
-            );
+            final task = tasks[index];
+            return _buildTaskCard(task);
           },
         );
-      }),
+      },
+    );
+  }
+
+  Widget _buildSQLiteTasks() {
+    return Obx(() {
+      final tasks =
+          taskController.taskList
+              .where(
+                (task) => showCompleted ? task.isDone == 1 : task.isDone == 0,
+              )
+              .toList();
+
+      if (tasks.isEmpty) {
+        return Center(
+          child: Text("No ${showCompleted ? 'completed' : 'pending'} tasks."),
+        );
+      }
+
+      return ListView.builder(
+        itemCount: tasks.length,
+        itemBuilder: (context, index) {
+          final task = tasks[index];
+          return _buildTaskCard(task);
+        },
+      );
+    });
+  }
+
+  Widget _buildTaskCard(TaskModel task) {
+    return Card(
+      margin: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+      child: ListTile(
+        onTap: () => Get.to(() => TaskDetailScreen(task: task)),
+        title: Text(
+          task.title,
+          style: TextStyle(
+            decoration: task.isDone == 1 ? TextDecoration.lineThrough : null,
+            color: task.isDone == 1 ? Colors.grey : null,
+          ),
+        ),
+        subtitle: Text(
+          'Due: ${DateFormat.yMd().format(DateTime.parse(task.date))}',
+        ),
+        trailing: Checkbox(
+          value: task.isDone == 1,
+          onChanged: (val) {
+            final updated = task.copyWith(isDone: val! ? 1 : 0);
+            if (useFirestore) {
+              FirebaseFirestore.instance
+                  .collection('tasks')
+                  .doc(task.id)
+                  .update({'isDone': updated.isDone});
+            } else {
+              taskController.updateTask(updated);
+            }
+          },
+        ),
+      ),
     );
   }
 }

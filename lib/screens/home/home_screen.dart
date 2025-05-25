@@ -2,9 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:todo_list/screens/home/filter_screen.dart';
 import 'package:todo_list/screens/home/calendar_screen.dart';
 import 'package:todo_list/screens/home/task_stats_screen.dart';
-import 'package:todo_list/screens/profile/profile_screen.dart'; // ✅ CORRECT path
-import 'package:todo_list/screens/home/all_tasks_screen.dart';        // ✅ fixed
-      
+import 'package:todo_list/screens/profile/profile_screen.dart';
+import 'package:todo_list/screens/home/all_tasks_screen.dart';
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
@@ -28,20 +27,24 @@ class _HomeScreenState extends State<HomeScreen> {
     "All Tasks",
     "Calendar",
     "Filter",
-    "Stats",
+    "Statistics",
     "Profile",
   ];
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: Text(_titles[_currentIndex])),
+      appBar: AppBar(title: Text(_titles[_currentIndex]), centerTitle: true),
       body: _screens[_currentIndex],
       bottomNavigationBar: BottomNavigationBar(
         currentIndex: _currentIndex,
         selectedItemColor: Colors.indigo,
         unselectedItemColor: Colors.grey,
-        onTap: (index) => setState(() => _currentIndex = index),
+        onTap: (index) {
+          setState(() {
+            _currentIndex = index;
+          });
+        },
         type: BottomNavigationBarType.fixed,
         items: const [
           BottomNavigationBarItem(icon: Icon(Icons.list_alt), label: 'Tasks'),

@@ -5,11 +5,10 @@ import 'package:intl/intl.dart';
 import 'package:todo_list/controllers/task_controller.dart';
 import 'package:todo_list/models/task_model.dart';
 import 'package:todo_list/services/notification_service.dart';
-import 'package:fluttertoast/fluttertoast.dart';
+import 'package:oktoast/oktoast.dart';
 
 class AddEditTaskScreen extends StatefulWidget {
   final TaskModel? task;
-
   const AddEditTaskScreen({super.key, this.task});
 
   @override
@@ -39,14 +38,14 @@ class _AddEditTaskScreenState extends State<AddEditTaskScreen> {
       _descController.text = t.description;
       _selectedDate = DateTime.tryParse(t.date);
 
-      // Safely parse time in 24-hour format
       try {
         final parts = t.time.split(':');
-        final hour = int.parse(parts[0]);
-        final minute = int.parse(parts[1]);
-        _selectedTime = TimeOfDay(hour: hour, minute: minute);
-      } catch (e) {
-        _selectedTime = TimeOfDay.now(); // silently fallback without toast
+        _selectedTime = TimeOfDay(
+          hour: int.parse(parts[0]),
+          minute: int.parse(parts[1]),
+        );
+      } catch (_) {
+        _selectedTime = TimeOfDay.now();
       }
 
       _priority = t.priority;
@@ -83,19 +82,19 @@ class _AddEditTaskScreenState extends State<AddEditTaskScreen> {
     if (_titleController.text.isEmpty ||
         _selectedDate == null ||
         _selectedTime == null) {
-      Fluttertoast.showToast(msg: "Please fill all required fields");
+      showToast("Please fill all required fields");
       return;
     }
 
-    // Convert TimeOfDay to 24-hour formatted string
     final formattedTime =
         '${_selectedTime!.hour.toString().padLeft(2, '0')}:${_selectedTime!.minute.toString().padLeft(2, '0')}';
 
     final task = TaskModel(
+      localId: widget.task?.localId,
       id: widget.task?.id,
       title: _titleController.text.trim(),
       description: _descController.text.trim(),
-      date: _selectedDate!.toIso8601String(),
+      date: _selectedDate!.toIso8601String().split('T')[0],
       time: formattedTime,
       priority: _priority,
       category: _category,
@@ -105,7 +104,7 @@ class _AddEditTaskScreenState extends State<AddEditTaskScreen> {
     );
 
     if (widget.task == null) {
-      await _controller.addTask(task);
+      await _controller.addTaskToBoth(task);
 
       await NotificationService.scheduleNotification(
         id: DateTime.now().millisecondsSinceEpoch ~/ 1000,
@@ -120,13 +119,13 @@ class _AddEditTaskScreenState extends State<AddEditTaskScreen> {
         ),
       );
 
-      Fluttertoast.showToast(msg: "✅ Task created!");
+      showToast("✅ Task created!");
     } else {
-      await _controller.updateTask(task);
-      Fluttertoast.showToast(msg: "✅ Task updated!");
+      await _controller.updateTaskToBoth(task);
+      showToast("✅ Task updated!");
     }
 
-    await _controller.fetchTasks(); // Ensure list refresh
+    await _controller.fetchTasks();
     Navigator.pop(context);
   }
 
@@ -244,9 +243,7 @@ class _AddEditTaskScreenState extends State<AddEditTaskScreen> {
                       onPressed: () {
                         final text = _subtaskController.text.trim();
                         if (text.isEmpty) {
-                          Fluttertoast.showToast(
-                            msg: "Checklist item cannot be empty",
-                          );
+                          showToast("Checklist item cannot be empty");
                           return;
                         }
                         setState(() {
@@ -272,11 +269,10 @@ class _AddEditTaskScreenState extends State<AddEditTaskScreen> {
                               title: Text(entry.value),
                               trailing: IconButton(
                                 icon: const Icon(Icons.close),
-                                onPressed: () {
-                                  setState(() {
-                                    _checklist.removeAt(entry.key);
-                                  });
-                                },
+                                onPressed:
+                                    () => setState(
+                                      () => _checklist.removeAt(entry.key),
+                                    ),
                               ),
                             ),
                           )

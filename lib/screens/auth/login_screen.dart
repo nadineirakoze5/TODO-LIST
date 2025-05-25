@@ -1,13 +1,12 @@
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'package:shared_preferences/shared_preferences.dart';
-import 'package:todo_list/screens/home/home_screen.dart';
-import 'package:todo_list/screens/auth/register_screen.dart';
-import 'package:todo_list/models/user_model.dart';
-import 'dart:convert';
-import 'package:fluttertoast/fluttertoast.dart';
-import 'package:todo_list/screens/auth/reset_password_screen.dart';
+import 'package:firebase_auth/firebase_auth.dart';
+import 'package:oktoast/oktoast.dart';
 
+import 'register_screen.dart';
+import 'reset_password_screen.dart';
+import '../home/home_screen.dart';
 
 class LoginScreen extends StatefulWidget {
   const LoginScreen({super.key});
@@ -20,38 +19,48 @@ class _LoginScreenState extends State<LoginScreen> {
   final _formKey = GlobalKey<FormState>();
   final _emailCtrl = TextEditingController();
   final _passwordCtrl = TextEditingController();
-  void _login() async {
-    if (!_formKey.currentState!.validate()) return;
+  final FirebaseAuth _auth = FirebaseAuth.instance;
 
-    final prefs = await SharedPreferences.getInstance();
-    final usersJson = prefs.getStringList('users') ?? [];
+  Future<void> _login() async {
+    if (!_formKey.currentState!.validate()) return;
 
     final email = _emailCtrl.text.trim();
     final password = _passwordCtrl.text.trim();
 
-    List<UserModel> users =
-        usersJson
-            .map((jsonStr) => UserModel.fromMap(json.decode(jsonStr)))
-            .toList();
-
-    final match = users.any(
-      (user) => user.email == email && user.password == password,
-    );
-
-    if (match) {
-      await prefs.setString('current_user', email);
-      final name = users.firstWhere((user) => user.email == email).name;
-      await prefs.setString('current_user_name', name);
-
-      Fluttertoast.showToast(
-        msg: "Welcome back, $name!",
-        gravity: ToastGravity.BOTTOM,
+    try {
+      final userCredential = await _auth.signInWithEmailAndPassword(
+        email: email,
+        password: password,
       );
-      Get.offAll(const HomeScreen());
-    } else {
-      Fluttertoast.showToast(
-        msg: "Invalid email or password",
-        gravity: ToastGravity.BOTTOM,
+
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.setString('current_user', email);
+      await prefs.setString(
+        'current_user_name',
+        userCredential.user?.displayName ?? "ToDo User",
+      );
+
+      showToast(
+        "👋 Welcome back, ${userCredential.user?.displayName ?? email}",
+        position: ToastPosition.bottom,
+      );
+
+      Get.offAll(() => const HomeScreen());
+    } on FirebaseAuthException catch (e) {
+      String message = "❌ Login failed";
+      if (e.code == 'user-not-found') {
+        message = "⚠️ No user found with this email";
+      } else if (e.code == 'wrong-password') {
+        message = "⚠️ Incorrect password. Try again.";
+      } else if (e.code == 'invalid-email') {
+        message = "⚠️ Invalid email format";
+      }
+
+      showToast(message, position: ToastPosition.bottom);
+    } catch (e) {
+      showToast(
+        "❌ Unexpected error: ${e.toString()}",
+        position: ToastPosition.bottom,
       );
     }
   }
@@ -121,7 +130,6 @@ class _LoginScreenState extends State<LoginScreen> {
                       onPressed: () => Get.to(() => const RegisterScreen()),
                       child: const Text("Don't have an account? Register"),
                     ),
-
                     TextButton(
                       onPressed:
                           () => Get.to(() => const ResetPasswordScreen()),
